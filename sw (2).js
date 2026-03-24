@@ -4,7 +4,7 @@
 // This forces all users' browsers to discard the old cached version and load
 // the new one. Format: YYYYMMDDHHMI  e.g. 202603241430 = March 24 2026, 2:30pm
 // ─────────────────────────────────────────────────────────────────────────────
-const CACHE = 'atlas-202603240946';
+const CACHE = 'atlas-202603242223';
 const ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
