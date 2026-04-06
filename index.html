@@ -5153,7 +5153,11 @@ function _applyRemoteState(data){
   rebuildCATS(S.catRemovals,S.catCustom);
   if(S.dark){document.documentElement.setAttribute('data-theme','dark');}
   else{document.documentElement.removeAttribute('data-theme');}
-  save();
+  // Write to localStorage directly — do NOT call save() here as that would
+  // trigger atlasPushToSupabase() and overwrite remote with stale local data
+  try{
+    localStorage.setItem('atlas_v2',JSON.stringify(data));
+  }catch(e){}
 }
 
 async function atlasPushToSupabase(){
@@ -5176,16 +5180,22 @@ async function atlasPullFromSupabase(){
       .select('data,updated_at')
       .eq('user_id',_atlasUser.id)
       .single();
+    if(error&&error.code==='PGRST116'){
+      // No row exists yet — first time on this account, push local data up
+      await atlasPushToSupabase();
+      return false;
+    }
     if(error||!data)return false;
     const remote=data.data||{};
     const remoteTs=new Date(data.updated_at||0).getTime();
     const localTs=new Date(localStorage.getItem('atlas_v2_updated_at')||0).getTime();
-    if(remoteTs>localTs){
+    if(remoteTs>=localTs){
+      // Remote is same age or newer — always use it
       _applyRemoteState(remote);
       localStorage.setItem('atlas_v2_updated_at',data.updated_at);
-      return true; // caller should re-render
+      return true;
     }
-    // Local is newer — push up
+    // Local is genuinely newer — push up
     await atlasPushToSupabase();
     return false;
   }catch(e){console.warn('ATLAS sync pull failed:',e);return false;}
