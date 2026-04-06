@@ -2,7 +2,7 @@
 // HOW TO UPDATE: Every time you upload a new index.html, change the date below.
 // Format: YYYYMMDDHHMI  e.g. 202604051200 = April 5 2026, 12:00pm
 // ─────────────────────────────────────────────────────────────────────────────
-const CACHE = 'atlas-202604060858';
+const CACHE = 'atlas-202604060922';
 const ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
