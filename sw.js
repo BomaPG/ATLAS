@@ -1,33 +1,22 @@
-const CACHE = 'atlas-202604061217';
-const ASSETS = ['/ATLAS/', '/ATLAS/index.html'];
-
+const CACHE = 'atlas-202604061430';
+const ASSETS = ['/ATLAS/', '/ATLAS/index.html', '/ATLAS/auth.html'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(() => {})));
   self.skipWaiting();
 });
-
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys =>
     Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
   ));
   self.clients.claim();
 });
-
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-
-  // Only handle http/https — ignore chrome-extension, data URIs, etc.
   if (!url.startsWith('http')) return;
-
-  // Never intercept Supabase API calls — let them go straight to network
   if (url.includes('supabase.co')) return;
-
-  // Only cache GET requests — POST/PUT/DELETE must always go to network
   if (e.request.method !== 'GET') return;
-
   e.respondWith(
     fetch(e.request).then(response => {
-      // Only cache valid same-origin or CORS responses
       if (response && response.status === 200) {
         const copy = response.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
@@ -36,8 +25,6 @@ self.addEventListener('fetch', e => {
     }).catch(() => caches.match(e.request))
   );
 });
-
-// LOCAL MESSAGES (timer done)
 self.addEventListener('message', e => {
   if (e.data && e.data.type === 'TIMER_DONE') {
     const taskTitle = e.data.taskTitle || '';
@@ -51,8 +38,6 @@ self.addEventListener('message', e => {
     });
   }
 });
-
-// NOTIFICATION CLICK — open ATLAS
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil(
