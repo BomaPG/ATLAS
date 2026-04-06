@@ -5184,24 +5184,36 @@ async function atlasPullFromSupabase(){
     const{data,error}=await _sb.from('user_data')
       .select('data,updated_at').eq('user_id',_atlasUser.id).single();
     if(error&&error.code==='PGRST116'){
-      // No remote row yet — first time, push local data up
       await atlasPushToSupabase();
+      _atlasIsActive=true;
       return false;
     }
     if(error||!data)return false;
+    const remoteDeviceId=data.data?._device_id;
+    const localDeviceId=_atlasDeviceId();
+    // Already active and another device has taken over — sign out silently
+    if(_atlasIsActive&&remoteDeviceId&&remoteDeviceId!==localDeviceId){
+      atlasStopLiveSync();
+      await atlasSignOut();
+      render();
+      return false;
+    }
     const remoteTs=new Date(data.updated_at||0).getTime();
     const localTs=new Date(localStorage.getItem('atlas_v2_updated_at')||0).getTime();
     if(remoteTs>localTs){
-      // Remote is strictly newer — apply it
       _applyRemoteState(data.data||{});
       localStorage.setItem('atlas_v2_updated_at',data.updated_at);
+      if(!_atlasIsActive){
+        // First pull after sign-in — claim the session by pushing with our device_id
+        await atlasPushToSupabase();
+        _atlasIsActive=true;
+      }
       return true;
     }
     if(localTs>remoteTs){
-      // Local is strictly newer — push up
       await atlasPushToSupabase();
     }
-    // Equal timestamps — do nothing
+    _atlasIsActive=true;
     return false;
   }catch(e){console.warn('ATLAS pull failed:',e);return false;}
 }
@@ -5287,9 +5299,17 @@ function atlasStartLiveSync(){
         table:'user_data',
         filter:'user_id=eq.'+_atlasUser.id
       },async(payload)=>{
+        const remoteDeviceId=payload.new?.data?._device_id;
+        const localDeviceId=_atlasDeviceId();
+        // Another device has claimed the session — sign out silently
+        if(_atlasIsActive&&remoteDeviceId&&remoteDeviceId!==localDeviceId){
+          atlasStopLiveSync();
+          await atlasSignOut();
+          render();
+          return;
+        }
         const remoteTs=new Date(payload.new?.updated_at||0).getTime();
         const localTs=new Date(localStorage.getItem('atlas_v2_updated_at')||0).getTime();
-        // Only apply if remote is newer than what we have locally
         if(remoteTs>localTs&&payload.new?.data){
           _applyRemoteState(payload.new.data);
           localStorage.setItem('atlas_v2_updated_at',payload.new.updated_at);
