@@ -5076,17 +5076,27 @@ const _SB_URL='https://ytdaivpkdvgzuwleoyhl.supabase.co';
 const _SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0ZGFpdnBrZHZnenV3bGVveWhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzOTA0MjksImV4cCI6MjA4OTk2NjQyOX0.-GgecQ933idzpCDRXtN-Ht_rdnFrNN6bgEGpXnhxj2A';
 let _sb=null;
 let _atlasUser=null;
+let _atlasIsActive=false;
+
+function _atlasDeviceId(){
+  let id=localStorage.getItem('atlas_device_id');
+  if(!id){
+    id=Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
+    localStorage.setItem('atlas_device_id',id);
+  }
+  return id;
+}
 
 function showAuthModal(){
   openModal(
     '<div class="modal-hdr"><strong>Sign in to ATLAS</strong><button class="x-btn" onclick="closeModal()">×</button></div>'
     +'<p style="font-size:13px;color:var(--txt2);margin-bottom:16px;line-height:1.6">Enter your email and we\'ll send you a magic link. No password needed. Your data syncs across all your devices.</p>'
     +'<label class="fl">Email</label>'
-    +'<input class="fi" type="email" id="auth-email" placeholder="you@example.com" autofocus>'
+   +'<input class="fi" type="email" id="auth-email" placeholder="you@example.com" autofocus autocomplete="email" inputmode="email">'
     +'<div id="auth-msg" style="font-size:12px;margin-bottom:10px;min-height:18px"></div>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end">'
-      +'<button class="btn-g" onclick="closeModal()">Not now</button>'
-      +'<button class="btn-p" id="auth-send-btn" onclick="atlasSendMagicLink()">Send magic link</button>'
+    +'<button type="button" class="btn-g" onclick="closeModal()">Not now</button>'
+      +'<button type="button" class="btn-p" id="auth-send-btn" onclick="atlasSendMagicLink()">Send magic link</button>'
     +'</div>'
     +'<p style="font-size:11px;color:var(--txt3);margin-top:14px;text-align:center">Your existing data is safe — signing in links it to your account.</p>'
   );
@@ -5103,16 +5113,21 @@ async function atlasSendMagicLink(){
   const btn=document.getElementById('auth-send-btn');
   const msg=document.getElementById('auth-msg');
   if(btn){btn.disabled=true;btn.textContent='Sending…';}
-  const{error}=await _sb.auth.signInWithOtp({
-    email,
-    options:{emailRedirectTo:window.location.origin+window.location.pathname}
-  });
-  if(error){
-    if(msg){msg.textContent='Error: '+error.message;msg.style.color='#ef4444';}
+ try{
+    const{error}=await _sb.auth.signInWithOtp({
+      email,
+      options:{emailRedirectTo:'https://bomapg.github.io/ATLAS/auth.html'}
+    });
+    if(error){
+      if(msg){msg.textContent='Error: '+error.message;msg.style.color='#ef4444';}
+      if(btn){btn.disabled=false;btn.textContent='Send magic link';}
+    } else {
+      if(msg){msg.textContent='✓ Check your email for the magic link!';msg.style.color='#22c55e';}
+      if(btn){btn.textContent='Sent!';}
+    }
+  }catch(e){
+    if(msg){msg.textContent='Error: '+(e.message||'Unknown error. Please try again.');msg.style.color='#ef4444';}
     if(btn){btn.disabled=false;btn.textContent='Send magic link';}
-  } else {
-    if(msg){msg.textContent='✓ Check your email for the magic link!';msg.style.color='#22c55e';}
-    if(btn){btn.textContent='Sent!';}
   }
 }
 
@@ -5132,7 +5147,8 @@ function _getStateSnapshot(){
     trash:S.trash,lastActiveDate:S.lastActiveDate,lastDate:S.lastDate,
     loopTasks:S.loopTasks,completedCollapsed:S.completedCollapsed,
     navCollapsed:S.navCollapsed,onboarded:S.onboarded,activeTimer:S.activeTimer,
-    catRemovals:S.catRemovals,catCustom:S.catCustom,catRecurring:S.catRecurring
+   catRemovals:S.catRemovals,catCustom:S.catCustom,catRecurring:S.catRecurring,
+    _device_id:_atlasDeviceId()
   };
 }
 
@@ -5194,6 +5210,19 @@ async function atlasAuthInit(){
   try{_sb=window.supabase?.createClient(_SB_URL,_SB_ANON);}
   catch(e){console.warn('Supabase init failed:',e);return;}
   if(!_sb)return;
+
+  // Check for pending session written by auth.html (iOS PWA magic link bridge)
+  const pendingRaw=localStorage.getItem('atlas_pending_session');
+  if(pendingRaw){
+    try{
+      const pending=JSON.parse(pendingRaw);
+      localStorage.removeItem('atlas_pending_session');
+      if(pending.access_token&&pending.refresh_token){
+        await _sb.auth.setSession({access_token:pending.access_token,refresh_token:pending.refresh_token});
+        localStorage.removeItem('atlas_v2_updated_at');
+      }
+    }catch(e){console.warn('Pending session restore failed:',e);}
+  }
 
   // Handle magic link token in URL hash
   const hash=window.location.hash;
