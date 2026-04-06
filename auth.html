@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ATLAS — Signing in…</title>
+<style>
+  body{font-family:Inter,-apple-system,sans-serif;background:#07111e;color:#f1f5f9;
+    display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}
+</style>
+</head>
+<body>
+<div>
+  <div style="font-size:48px;margin-bottom:16px">⚓</div>
+  <div style="font-size:20px;font-weight:700;color:#c9a84c;margin-bottom:8px">Signing you in…</div>
+  <div style="font-size:13px;color:#64748b">You'll be redirected to ATLAS in a moment.</div>
+</div>
+<script>
+(function(){
+  var hash=window.location.hash;
+  if(hash&&hash.includes('access_token')){
+    try{
+      var params=new URLSearchParams(hash.replace(/^#/,''));
+      var at=params.get('access_token');
+      var rt=params.get('refresh_token');
+      if(at&&rt){
+        localStorage.setItem('atlas_pending_session',JSON.stringify({access_token:at,refresh_token:rt}));
+      }
+    }catch(e){}
+  }
+  window.location.replace('https://bomapg.github.io/ATLAS/');
+})();
+</script>
+</body>
+</html>
