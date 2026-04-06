@@ -1,4 +1,4 @@
-const CACHE = 'atlas-202604061030';
+const CACHE = 'atlas-202604061046';
 const ASSETS = ['/ATLAS/', '/ATLAS/index.html'];
 
 self.addEventListener('install', e => {
