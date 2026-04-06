@@ -5231,7 +5231,7 @@ resumeTimerIfActive();
 // Init auth after render so app is usable immediately
 atlasAuthInit();
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js'));
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));
 }
 </script>
 </body>
