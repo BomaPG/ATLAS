@@ -5092,6 +5092,8 @@ function showAuthModal(){
 }
 
 async function atlasSendMagicLink(){
+  if(!_sb){try{_sb=window.supabase?.createClient(_SB_URL,_SB_ANON);}catch(e)
+    {}}
   if(!_sb)return;
   const email=(document.getElementById('auth-email')?.value||'').trim();
   if(!email||!email.includes('@')){
