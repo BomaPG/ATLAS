@@ -1385,7 +1385,7 @@ function renderBreakdown(){
     return'<div style="margin-bottom:20px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
         +'<div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:var(--surf2)">'+month+'</div>'
-        +'<div style="flex:1;height:1px;background:var(--brd)"></div>'
+        +'<div style="flex:1"></div>'
       +'</div>'
       +mGoals.map(g=>goalCardBrk(g)).join('')
     +'</div>';
@@ -1522,7 +1522,7 @@ function openMsModal(gid,cat,eid){
     +'</div>';
   }
   function rebuildMsMtList(){
-    const box=document.getElementById('ms-mt-list');if(box)box.innerHTML=window._msMiniTasks.map(mtRowMs).join('');
+    const box=document.getElementById('ms-mt-list');if(box)box.innerHTML=window._msMiniTasks.map(function(t,i){return mtRowMs(i,t);}).join('');
     const btn=document.getElementById('ms-mt-add');if(btn)btn.style.display=window._msMiniTasks.length>=5?'none':'block';
   }
   window.addMsMt=function(){if(window._msMiniTasks.length>=5)return;window._msMiniTasks.push({title:''});rebuildMsMtList();};
@@ -1538,7 +1538,7 @@ function openMsModal(gid,cat,eid){
     +'<div style="border:1px solid var(--brd);border-radius:8px;overflow:hidden;margin-bottom:12px">'
       +'<div style="padding:9px 12px;background:var(--surf2);font-size:12px;font-weight:600;color:var(--txt2)">⚡ Break into mini-tasks <span style="font-size:10px;font-weight:400;color:var(--txt3)">(optional, max 5)</span></div>'
       +'<div style="padding:10px 12px;border-top:1px solid var(--brd)">'
-        +'<div id="ms-mt-list">'+(window._msMiniTasks.length?window._msMiniTasks.map(mtRowMs).join(''):mtRowMs(0,null))+'</div>'
+        +'<div id="ms-mt-list">'+(window._msMiniTasks.length?window._msMiniTasks.map(function(t,i){return mtRowMs(i,t);}).join(''):mtRowMs(0,null))+'</div>'
         +'<button id="ms-mt-add" onclick="addMsMt()" style="width:100%;padding:5px;border-radius:7px;border:1px dashed var(--brd);cursor:pointer;font-size:12px;background:transparent;color:var(--txt2);'+(window._msMiniTasks.length>=5?'display:none':'')+'">+ Add mini-task</button>'
       +'</div>'
     +'</div>'
@@ -1635,7 +1635,7 @@ function renderSQ(){
     }).join(''):'<div style="text-align:center;padding:10px 0;font-size:12px;color:var(--txt3)">None</div>';
     return'<div class="eq-card"><div style="padding:9px 12px;background:'+q.bg+';border-bottom:1px solid '+q.c+'33"><div style="font-size:12px;font-weight:600;color:'+q.c+'">'+q.label+'</div><div style="font-size:11px;color:#94a3b8;margin-top:1px">'+q.desc+'</div></div><div style="padding:9px;min-height:60px">'+itemsHtml+'</div></div>';
   }).join('');
-  const completedHtml=completedSQ.length?'<div style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:#f0fdf4">✅ Completed · '+completedSQ.length+'</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>'
+  const completedHtml=completedSQ.length?'<div style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:#f0fdf4">✅ Completed · '+completedSQ.length+'</div><div style="flex:1"></div></div>'
     +completedSQ.map(sq=>'<div style="background:var(--surf);border:1px solid var(--brd);border-radius:8px;padding:8px 12px;margin-bottom:5px;display:flex;align-items:center;gap:8px;opacity:0.7">'
       +'<button onclick="completeSQ(\''+sq.id+'\')" style="width:16px;height:16px;border-radius:4px;border:none;background:#22c55e;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0"><span style="color:#fff;font-size:9px;line-height:1">✓</span></button>'
       +'<div style="flex:1;min-width:0;font-size:12px;color:var(--txt2);text-decoration:line-through">'+sq.title+'</div>'
@@ -1730,6 +1730,15 @@ function checkDailyRollover(){
     // First ever load — just stamp the date, don't move anything
     S.lastActiveDate=TODAY_ISO;save();return;
   }
+  // Repair: reset any Still Open tasks that have future scheduled days (wrongly rolled)
+  const todayIdxR=DAYS.indexOf(TODAY_NAME);
+  S.tasks.forEach(function(t){
+    if(t.status!=='Still Open'||t.isChildTask)return;
+    const tdays=Array.isArray(t.days)?t.days:(t.day?[t.day]:[]);
+    if(tdays.some(function(d){const di=DAYS.indexOf(d);return di>=0&&di>todayIdxR;})){
+      t.status='Not Started';t.rolledOver=false;
+    }
+  });
   // New day — roll over tasks whose scheduled days have ALL passed
   var rolled=0;
   const todayDayIdx=DAYS.indexOf(TODAY_NAME); // 0=Mon…6=Sun
@@ -1813,14 +1822,14 @@ function renderOQ(){
     html+='<div style="margin-bottom:18px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
         +'<div style="font-size:11px;font-weight:700;color:#854d0e;text-transform:uppercase;letter-spacing:.6px;padding:4px 10px;border-radius:20px;background:#fefce8;border:1px solid #fde68a">🔄 In Progress · '+inProgress.length+'</div>'
-        +'<div style="flex:1;height:1px;background:var(--brd)"></div>'
+        +'<div style="flex:1"></div>'
       +'</div>'
       +inProgress.map(oqCard).join('')
     +'</div>';
   }
   if(notStarted.length){
     html+='<div style="margin-bottom:18px">'
-      +(inProgress.length?'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:4px 10px;border-radius:20px;background:var(--surf2)">Not Started · '+notStarted.length+'</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>':'')
+      +(inProgress.length?'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:4px 10px;border-radius:20px;background:var(--surf2)">Not Started · '+notStarted.length+'</div><div style="flex:1"></div></div>':'')
       +notStarted.map(oqCard).join('')
     +'</div>';
   }
@@ -2074,16 +2083,22 @@ function renderToday(){
   const catPills=todayCats.length
     ? todayCats.map(cid=>{const cat=gc(cid);return`<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:${cat.c}18;color:${cat.c};border:1px solid ${cat.c}44">${cat.code||cat.id}</span>`;}).join('')
     : '';
-  const oqCount=S.tasks.filter(function(t){return t.status==='Still Open'&&!t.isChildTask&&!t.isLoop;}).length;
+  const oqCount=S.tasks.filter(function(t){
+    if(t.status!=='Still Open'||t.isChildTask||t.isLoop)return false;
+    if(t.oqSchedule&&t.oqSchedule.day&&t.oqSchedule.day!==TODAY_NAME){
+      const si=DAYS.indexOf(t.oqSchedule.day),ti=DAYS.indexOf(TODAY_NAME);
+      if(si>ti)return false;
+    }
+    const td=Array.isArray(t.days)?t.days:(t.day?[t.day]:[]);
+    if(td.length>0){const ti=DAYS.indexOf(TODAY_NAME);if(td.some(function(d){return DAYS.indexOf(d)>ti;}))return false;}
+    return true;
+  }).length;
   const sqActiveCount=S.sq.filter(sq=>!sq.completed).length;
   const oqPill=oqCount?`<button onclick="nav('openquests')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;cursor:pointer">🔮 ${oqCount} Open Quest${oqCount!==1?'s':''}</button>`:'';
   const sqPill=sqActiveCount?`<button onclick="nav('sidequests')" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;background:#fff7ed;color:#92400e;border:1px solid #fed7aa;cursor:pointer">⚡ ${sqActiveCount} Side Quest${sqActiveCount!==1?'s':''}</button>`:'';
-  const pillRow=`<div style="margin-bottom:12px">
-    <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px">${datePill}${timePill}</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">
-      <div style="display:flex;gap:5px;flex-wrap:wrap">${catPills}</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">${sqPill}${oqPill}</div>
-    </div>
+  const pillRow=`<div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap;margin-bottom:12px;margin-top:8px">
+    <div style="display:flex;gap:5px;flex-wrap:wrap">${catPills}</div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">${sqPill}${oqPill}</div>
   </div>`;
 
   const todayWH=S.whc[TODAY_NAME]||{};
@@ -2129,13 +2144,18 @@ function renderToday(){
     // Default — not yet asked, show enable button
     return`<button onclick="triggerNotifPermission()" style="padding:7px 11px;border-radius:8px;border:1px solid var(--brd);cursor:pointer;font-size:13px;background:var(--surf);color:var(--txt2)" title="Enable notifications">🔔</button>`;
   })();
-  const headerHtml=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <h2 style="font-size:20px;font-weight:700;color:var(--txt)">${greeting}</h2>
-    <div style="display:flex;gap:8px;align-items:center">
-      ${notifBell}
-      <button onclick="openVoiceCapture()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--brd);cursor:pointer;font-size:15px;background:var(--surf);color:var(--txt2)" title="Add tasks by voice">🎙️</button>
-      <button onclick="openDailySummary()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--brd);cursor:pointer;font-size:15px;background:var(--surf);color:var(--txt2)" title="Copy today's task list">📋</button>
-      <button class="btn-p" onclick="openAddTask()">+ Add Task</button>
+  const headerHtml=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">
+    <div>
+      <h2 style="font-size:20px;font-weight:700;color:var(--txt);margin-bottom:8px">${greeting}</h2>
+      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">${datePill}${timePill}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+      <button class="btn-p" onclick="openAddTask()" style="white-space:nowrap">+ Add Task</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${notifBell}
+        <button onclick="openVoiceCapture()" style="padding:5px 8px;border-radius:7px;border:1px solid var(--brd);cursor:pointer;font-size:14px;background:var(--surf);color:var(--txt2);line-height:1" title="Add tasks by voice">🎙️</button>
+        <button onclick="openDailySummary()" style="padding:5px 8px;border-radius:7px;border:1px solid var(--brd);cursor:pointer;font-size:14px;background:var(--surf);color:var(--txt2);line-height:1" title="Copy today's task list">📋</button>
+      </div>
     </div>
   </div>
   ${pillRow}
@@ -2166,7 +2186,7 @@ function renderToday(){
     +(todayTasks.length
       ? '<div style="margin-bottom:16px">'
           +'<div style="font-size:17px;font-weight:700;color:var(--txt);margin-bottom:5px">You can still do these today</div>'
-          +'<div style="font-size:13px;color:var(--txt2);font-style:italic;line-height:1.6">If you can\'t close them today, no pressure. Mark them as <strong>Still Open</strong> and they\'ll move to your Open Quests.</div>'
+          +'<div style="font-size:13px;color:var(--txt2);font-style:italic;line-height:1.6">If you can\'t do them today, no pressure — they\'ll be in your Open Quests.</div>'
         +'</div>'
       : '')
     : '';
@@ -2190,13 +2210,7 @@ function renderToday(){
     </div>`;
   }
 
-  const statusLegend=`<div style="display:flex;gap:10px;flex-wrap:wrap;padding:10px 13px;background:var(--surf2);border-radius:8px;font-size:11px;color:var(--txt2);margin-top:14px">
-    <span style="font-weight:600">Status:</span>
-    <span>✅ Completed</span>
-    <span style="color:#1d4ed8">● Still Open → Open Quests</span>
-    <span style="color:#854d0e">● Half-done → yellow</span>
-    <span style="color:#b91c1c">● Not Done → tomorrow</span>
-  </div>`;
+
 
   // Single Loops to Close renderer — purple card with goal info
   const loopsSection=loopTasks.length
@@ -2233,7 +2247,7 @@ function renderToday(){
             +'<div style="flex:1;min-width:0">'
               +'<div style="font-size:13px;color:var(--txt);font-weight:500;margin-bottom:3px">'+mt.title+(minis.length?' <span style="font-size:11px;color:var(--txt3)">'+(isExp?'▲':'▼')+'</span>':'')+'</div>'
               +'<div style="font-size:11px;color:var(--txt2);display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
-                +(cat?'<span style="color:'+cat.c+';font-weight:600">'+cat.name+'</span>':'')
+                +(cat?'<span style="color:'+cat.c+';font-weight:600">'+(cat.code||cat.id)+'</span>':'')
                 +'<span style="color:'+WH_C[mt.wh||'Sunrise']+'" title="'+(mt.wh||'')+'">'+( WH_ICON[mt.wh||'Sunrise']||mt.wh||'')+'</span>'
                 +(mt.oqSchedule?'<span>'+mt.oqSchedule.time+' · '+mt.dur+'</span>':'')
                 +(goal?'<span style="color:var(--txt3)">· '+goal.title.slice(0,25)+'</span>':'')
@@ -2259,7 +2273,7 @@ function renderToday(){
       html+=`<div style="margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <div style="font-size:12px;font-weight:700;color:${WH_C[wh]};text-transform:uppercase;letter-spacing:.5px">${WH_ICON[wh]} ${wh}</div>
-          <div style="flex:1;height:1px;background:var(--brd)"></div>
+          <div style="flex:1"></div>
           <div style="font-size:11px;color:var(--txt3)">${grouped[wh].length} task${grouped[wh].length!==1?'s':''}</div>
         </div>
         ${grouped[wh].map(taskCard).join('')}
@@ -2272,7 +2286,7 @@ function renderToday(){
       html+=`<div style="margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <div style="font-size:12px;font-weight:700;color:${cat?.c||'var(--txt2)'};text-transform:uppercase;letter-spacing:.5px">${cat?.name||cid}</div>
-          <div style="flex:1;height:1px;background:var(--brd)"></div>
+          <div style="flex:1"></div>
           <div style="font-size:11px;color:var(--txt3)">${catTasks.length} task${catTasks.length!==1?'s':''}</div>
         </div>
         ${catTasks.map(taskCard).join('')}
@@ -2283,19 +2297,19 @@ function renderToday(){
     const normal=todayTasks.filter(t=>t.priority==='normal');
     const unflagged=todayTasks.filter(t=>!t.priority);
     if(urgent.length){
-      html+=`<div style="margin-bottom:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.5px">🚩 Urgent · ${urgent.length}</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>${urgent.map(taskCard).join('')}</div>`;
+      html+=`<div style="margin-bottom:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.5px">🚩 Urgent · ${urgent.length}</div><div style="flex:1"></div></div>${urgent.map(taskCard).join('')}</div>`;
     }
     if(normal.length){
-      html+=`<div style="margin-bottom:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:.5px">🔵 Normal · ${normal.length}</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>${normal.map(taskCard).join('')}</div>`;
+      html+=`<div style="margin-bottom:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:.5px">🔵 Normal · ${normal.length}</div><div style="flex:1"></div></div>${normal.map(taskCard).join('')}</div>`;
     }
     if(unflagged.length){
-      html+=`<div style="margin-bottom:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px">Unflagged · ${unflagged.length}</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>${unflagged.map(taskCard).join('')}</div>`;
+      html+=`<div style="margin-bottom:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px">Unflagged · ${unflagged.length}</div><div style="flex:1"></div></div>${unflagged.map(taskCard).join('')}</div>`;
     }
   } else {
     html+=todayTasks.map(taskCard).join('');
   }
 
-  html+=loopsSection+statusLegend;
+  html+=loopsSection;
   return html;
 }
 function toggleLoopMiniTask(parentId,idx){
@@ -2380,7 +2394,7 @@ function renderTomorrow(){
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-size:13px;color:var(--txt)">'+t.title+'</div>'
             +'<div style="font-size:11px;color:var(--txt2);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap">'
-              +(cat?'<span style="color:'+cat.c+';font-weight:600">'+cat.name+'</span>':'')
+              +(cat?'<span style="color:'+cat.c+';font-weight:600">'+(cat.code||cat.id)+'</span>':'')
               +'<span style="color:'+WH_C[t.wh||'Sunrise']+'" title="'+(t.wh||'Sunrise')+'">'+( WH_ICON[t.wh||'Sunrise']||t.wh||'Sunrise')+'</span>'
               +(t.taskTime?'<span style="color:var(--txt3)">'+t.taskTime+'</span>':'')
               +(g?'<span style="color:var(--txt3)">· '+g.title.slice(0,30)+'</span>':'')
@@ -2575,7 +2589,7 @@ function renderFuture(){
     html+='<div style="margin-bottom:18px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
         +'<div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:var(--surf2)">'+label+'</div>'
-        +'<div style="flex:1;height:1px;background:var(--brd)"></div>'
+        +'<div style="flex:1"></div>'
       +'</div>'
       +tasks.map(t=>{
         const cat=gc(t.cat);
@@ -2731,7 +2745,7 @@ function renderWeek(){
     return`<div style="margin-bottom:22px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.6px;padding:4px 10px;border-radius:20px;background:${bg}">${icon} ${label} · ${msList.length}</div>
-        <div style="flex:1;height:1px;background:var(--brd)"></div>
+        <div style="flex:1"></div>
       </div>
       ${msList.length?msList.map(m=>msCard(m,m.status==='Still Open')).join(''):('<div style="font-size:12px;color:var(--txt3);padding:10px 0">'+emptyMsg+'</div>')}
     </div>`;
@@ -2757,7 +2771,7 @@ function renderWeek(){
   const standaloneHtml=standaloneTasks.length?`<div style="margin-bottom:22px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:4px 10px;border-radius:20px;background:var(--surf2)">📋 Tasks This Week · ${standaloneTasks.length}</div>
-      <div style="flex:1;height:1px;background:var(--brd)"></div>
+      <div style="flex:1"></div>
     </div>
     ${standaloneTasks.map(taskCard).join('')}
   </div>`:'';
@@ -2770,7 +2784,6 @@ function renderWeek(){
   const sqWeekHtml=allSQWeek.length?'<div style="margin-bottom:22px">'
     +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
       +'<div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.6px;padding:4px 10px;border-radius:20px;background:#fff7ed;border:1px solid #fed7aa">⚡ Side Quests · '+allSQWeek.length+'</div>'
-      +'<div style="flex:1;height:1px;background:var(--brd)"></div>'
     +'</div>'
     +allSQWeek.map(sq=>{
       const comp=sq.completed;
@@ -2806,8 +2819,8 @@ function renderWeek(){
       const cMs=allMs.filter(m=>m.cat===cid);
       const cTasks=allWeekTasks.filter(t=>t.cat===cid&&!t.msid);
       if(!cMs.length&&!cTasks.length)return'';
-      const isOpen=S.weekCatOpen[cid]!==false;
-      return'<div style="margin-bottom:14px">'        +'<button onclick="S.weekCatOpen=S.weekCatOpen||{};S.weekCatOpen[\''+cid+'\']=!'+isOpen+';render()" style="width:100%;display:flex;align-items:center;gap:8px;margin-bottom:'+(isOpen?'10':'0')+'px;background:none;border:none;cursor:pointer;text-align:left;padding:6px 0">'          +'<div style="width:10px;height:10px;border-radius:50%;background:'+(cat?.c||'#888')+';flex-shrink:0"></div>'          +'<div style="font-size:11px;font-weight:700;color:'+(cat?.c||'var(--txt2)')+';text-transform:uppercase;letter-spacing:.7px">'+(cat?.name||cid)+'</div>'          +'<div style="flex:1;height:1px;background:var(--brd)"></div>'          +'<span style="font-size:11px;color:var(--txt3)">'+(cMs.length+cTasks.length)+' items &nbsp;'+(isOpen?'▲':'▼')+'</span>'        +'</button>'        +(isOpen?(cMs.map(m=>msCard(m,m.status==='Still Open')).join('')+cTasks.map(taskCard).join('')):'')
+      const isOpen=S.weekCatOpen[cid]===true;
+      return'<div style="margin-bottom:14px">'        +'<button onclick="S.weekCatOpen=S.weekCatOpen||{};S.weekCatOpen[\''+cid+'\']=!'+isOpen+';render()" style="width:100%;display:flex;align-items:center;gap:8px;margin-bottom:'+(isOpen?'10':'0')+'px;background:none;border:none;cursor:pointer;text-align:left;padding:6px 0">'          +'<div style="width:10px;height:10px;border-radius:50%;background:'+(cat?.c||'#888')+';flex-shrink:0"></div>'          +'<div style="font-size:11px;font-weight:700;color:'+(cat?.c||'var(--txt2)')+';text-transform:uppercase;letter-spacing:.7px">'+(cat?.name||cid)+'</div>'          +'<div style="flex:1"></div>'          +'<span style="font-size:11px;color:var(--txt3)">'+(cMs.length+cTasks.length)+((cMs.length+cTasks.length)===1?' item ':' items ')+ '&nbsp;'+(isOpen?'▲':'▼')+'</span>'        +'</button>'        +(isOpen?(cMs.map(m=>msCard(m,m.status==='Still Open')).join('')+cTasks.map(taskCard).join('')):'')
       +'</div>';
     }).join('');
   })();
@@ -2826,9 +2839,9 @@ function renderWeek(){
       });
       if(!dayTasks.length&&!dayMs.length)return'';
       const isToday=day===TODAY_NAME;
-      const isOpen=S.weekDayOpen[day]!==false;
+      const isOpen=S.weekDayOpen[day]===true;
       const taskCardNoDay=t=>taskCard(t,true);
-      return'<div style="margin-bottom:14px">'        +'<button onclick="S.weekDayOpen=S.weekDayOpen||{};S.weekDayOpen[\''+day+'\']=!'+isOpen+';render()" style="width:100%;display:flex;align-items:center;gap:8px;margin-bottom:'+(isOpen?'10':'0')+'px;background:none;border:none;cursor:pointer;text-align:left;padding:6px 0">'          +'<div style="font-size:12px;font-weight:700;color:'+(isToday?'#1d4ed8':'var(--txt2)')+'">'+day+'</div>'          +(isToday?'<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:1px 7px;border:1px solid #bfdbfe">Today</span>':'')          +'<div style="flex:1;height:1px;background:'+(isToday?'#bfdbfe':'var(--brd)')+'"></div>'          +'<span style="font-size:11px;color:var(--txt3)">'+(dayMs.length+dayTasks.length)+' items &nbsp;'+(isOpen?'▲':'▼')+'</span>'        +'</button>'        +(isOpen?(dayMs.map(m=>msCard(m,m.status==='Still Open')).join('')+dayTasks.map(taskCardNoDay).join('')):'')
+      return'<div style="margin-bottom:14px">'        +'<button onclick="S.weekDayOpen=S.weekDayOpen||{};S.weekDayOpen[\''+day+'\']=!'+isOpen+';render()" style="width:100%;display:flex;align-items:center;gap:8px;margin-bottom:'+(isOpen?'10':'0')+'px;background:none;border:none;cursor:pointer;text-align:left;padding:6px 0">'          +'<div style="font-size:12px;font-weight:700;color:'+(isToday?'#1d4ed8':'var(--txt2)')+'">'+day+'</div>'          +(isToday?'<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:1px 7px;border:1px solid #bfdbfe">Today</span>':'')          +'<div style="flex:1"></div>'          +'<span style="font-size:11px;color:var(--txt3)">'+(dayMs.length+dayTasks.length)+((dayMs.length+dayTasks.length)===1?' item ':' items ')+' &nbsp;'+(isOpen?'▲':'▼')+'</span>'        +'</button>'        +(isOpen?(dayMs.map(m=>msCard(m,m.status==='Still Open')).join('')+dayTasks.map(taskCardNoDay).join('')):'')
       +'</div>';
     }).filter(Boolean).join('');
   })();
@@ -2842,9 +2855,9 @@ function renderWeek(){
     const normalT=allWeekTasks.filter(t=>t.priority==='normal');
     const noneT=allWeekTasks.filter(t=>!t.priority);
     let h='';
-    if(urgentMs.length||urgentT.length){h+=`<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:#fef2f2">🚩 Urgent · ${urgentMs.length+urgentT.length}</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>${urgentMs.map(m=>msCard(m,false)).join('')}${urgentT.map(taskCard).join('')}</div>`;}
-    if(normalMs.length||normalT.length){h+=`<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:#eff6ff">🔵 Normal · ${normalMs.length+normalT.length}</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>${normalMs.map(m=>msCard(m,false)).join('')}${normalT.map(taskCard).join('')}</div>`;}
-    if(noneMs.length||noneT.length){h+=`<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:var(--surf2)">Unflagged · ${noneMs.length+noneT.length}</div><div style="flex:1;height:1px;background:var(--brd)"></div></div>${noneMs.map(m=>msCard(m,false)).join('')}${noneT.map(taskCard).join('')}</div>`;}
+    if(urgentMs.length||urgentT.length){h+=`<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:#fef2f2">🚩 Urgent · ${urgentMs.length+urgentT.length}</div><div style="flex:1"></div></div>${urgentMs.map(m=>msCard(m,false)).join('')}${urgentT.map(taskCard).join('')}</div>`;}
+    if(normalMs.length||normalT.length){h+=`<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:#eff6ff">🔵 Normal · ${normalMs.length+normalT.length}</div><div style="flex:1"></div></div>${normalMs.map(m=>msCard(m,false)).join('')}${normalT.map(taskCard).join('')}</div>`;}
+    if(noneMs.length||noneT.length){h+=`<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:var(--surf2)">Unflagged · ${noneMs.length+noneT.length}</div><div style="flex:1"></div></div>${noneMs.map(m=>msCard(m,false)).join('')}${noneT.map(taskCard).join('')}</div>`;}
     return h||'<div style="padding:40px;text-align:center;color:var(--txt3)">No flagged tasks this week. Use 🚩 or 🔵 flags when creating tasks.</div>';
   })();
 
@@ -3393,7 +3406,7 @@ function renderFutureTasks(){
     html+='<div style="margin-bottom:20px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
         +'<div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:20px;background:var(--surf2)">'+label+'</div>'
-        +'<div style="flex:1;height:1px;background:var(--brd)"></div>'
+        +'<div style="flex:1"></div>'
       +'</div>'
       +tasks.map(t=>{
         const cat=gc(t.cat);
