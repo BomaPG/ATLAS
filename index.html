@@ -238,6 +238,7 @@ const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunda
 const WHS=['Sunrise','Midday','Sunset'];
 const WH_C={Sunrise:'#3b82f6',Midday:'#f59e0b',Sunset:'#8b5cf6'};
 const WH_BG={Sunrise:'#eff6ff',Midday:'#fffbeb',Sunset:'#f5f3ff'};
+const WH_ICON={Sunrise:'⛅',Midday:'☀️',Sunset:'🌙'};
 const DURS=['15 min','20 min','25 min','30 min','45 min','1 hour','2 hours'];
 const STATUS=['Not Started','In Progress','Still Open','Not Done','Half-done','Completed','Remove'];
 const TODAY_STATUS=['Not Started','In Progress','Completed','Remove'];
@@ -1729,11 +1730,19 @@ function checkDailyRollover(){
     // First ever load — just stamp the date, don't move anything
     S.lastActiveDate=TODAY_ISO;save();return;
   }
-  // New day — roll over unfinished tasks to Open Quests (Still Open)
+  // New day — roll over tasks whose scheduled days have ALL passed
   var rolled=0;
+  const todayDayIdx=DAYS.indexOf(TODAY_NAME); // 0=Mon…6=Sun
   S.tasks.forEach(function(t){
     if(t.status==='Completed'||t.status==='Still Open'||t.isChildTask)return;
     if(t.status==='Not Started'||t.status==='In Progress'||t.status==='Half-done'||t.status==='Not Done'){
+      const tdays=Array.isArray(t.days)?t.days:(t.day?[t.day]:[]);
+      // Don't roll over if the task has a scheduled day at or after today
+      const hasFutureOrTodayDay=tdays.some(function(d){
+        const di=DAYS.indexOf(d);
+        return di>=todayDayIdx;
+      });
+      if(hasFutureOrTodayDay)return; // still scheduled for today or future, leave it
       t.wasInProgress=(t.status==='In Progress');
       t.status='Still Open';
       t.rolledOver=true;
@@ -1747,7 +1756,23 @@ function checkDailyRollover(){
 }
 function renderOQ(){
   const LOOP_DURS=['5 min','10 min','15 min','20 min'];
-  const open=S.tasks.filter(function(t){return t.status==='Still Open'&&!t.isChildTask;});
+  const open=S.tasks.filter(function(t){
+    if(t.status!=='Still Open'||t.isChildTask)return false;
+    // Hide tasks rescheduled to a future day via "Schedule for Later"
+    if(t.oqSchedule&&t.oqSchedule.day&&t.oqSchedule.day!==TODAY_NAME){
+      const schedIdx=DAYS.indexOf(t.oqSchedule.day);
+      const todayIdx2=DAYS.indexOf(TODAY_NAME);
+      if(schedIdx>todayIdx2)return false; // future day this week — don't show in OQ yet
+    }
+    // Hide tasks whose scheduled days are all today or future (they'll appear in Today/Week)
+    const tdays=Array.isArray(t.days)?t.days:(t.day?[t.day]:[]);
+    if(tdays.length>0){
+      const todayIdx2=DAYS.indexOf(TODAY_NAME);
+      const hasFutureDay=tdays.some(function(d){return DAYS.indexOf(d)>todayIdx2;});
+      if(hasFutureDay)return false;
+    }
+    return true;
+  });
   const hdr='<div class="sh"><div><h2>Open Quests 🔮</h2><p>Unfinished tasks land here. Schedule them, close them, or let them go.</p></div></div>';
   if(!open.length)return hdr+'<div style="text-align:center;padding:60px;color:var(--txt3)"><div style="font-size:28px;margin-bottom:12px">✓</div><div style="font-size:14px;font-weight:600;color:var(--txt2)">All clear!</div><div style="font-size:12px;margin-top:4px">Tasks you mark Still Open or that roll over at end of day appear here.</div></div>';
   
@@ -1940,7 +1965,7 @@ function renderToday(){
     'Not Started':{bg:'transparent',color:'var(--txt)',extra:'border:1px solid var(--brd)'},
     'Still Open':{bg:'transparent',color:'var(--txt)',extra:'border:1px solid #bfdbfe'},
   };
-  function taskCard(mt){
+  function taskCard(mt,hideDayLabel){
     const cat=gc(mt.cat);
     const ms=S.ms.find(m=>m.id===mt.msid);
     const goal=mt.gid?S.goals.find(g=>g.id===mt.gid):null;
@@ -2011,13 +2036,13 @@ function renderToday(){
           </div>
           <div style="font-size:11px;color:var(--txt2);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
             ${cat?`<span style="color:${cat.c};font-weight:600">${cat.code||cat.id}</span>`:''}
-            <span style="color:${WH_C[mt.wh]||'var(--txt3)'}">${mt.wh}</span>
+            <span style="color:${WH_C[mt.wh]||'var(--txt3)'}" title="${mt.wh}">${WH_ICON[mt.wh]||mt.wh}</span>
             <span>${mt.dur}</span>${mt.taskTime?`<span style="color:var(--txt3)">${mt.taskTime}</span>`:''}
             ${ms?`<span style="color:var(--txt3)">${ms.title.slice(0,28)}${ms.title.length>28?'…':''}</span>`:''}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0" onclick="event.stopPropagation()">
-          <button onclick="startTimer('${mt.id}','${mt.title.replace(/'/g,'').slice(0,30)}','${mt.dur||'25 min'}')" style="background:var(--surf2);border:1px solid var(--brd);border-radius:6px;cursor:pointer;font-size:13px;padding:3px 7px;color:var(--txt2)" title="Start focus timer">⏱</button>
+          <button onclick="startTimer('${mt.id}','${mt.title.replace(/'/g,'').slice(0,30)}','${mt.dur||'25 min'}')" style="background:transparent;border:none;cursor:pointer;font-size:16px;padding:2px 4px;color:var(--txt3);line-height:1" title="Start focus timer">⏱</button>
           <select onchange="updateTodayTaskStatus('${mt.id}',this.value)" style="font-size:11px;padding:3px 5px;border:1px solid var(--brd);border-radius:6px;background:var(--inp);color:var(--txt2);cursor:pointer">${selOpts(TODAY_STATUS,mt.status)}</select>
           ${expandable?`<span style="font-size:11px;color:var(--txt3);cursor:pointer" onclick="S.expTodayTask=S.expTodayTask==='${mt.id}'?null:'${mt.id}';render()">${isExp?'▲':'▼'}</span>`:''}
         </div>
@@ -2109,6 +2134,7 @@ function renderToday(){
     <div style="display:flex;gap:8px;align-items:center">
       ${notifBell}
       <button onclick="openVoiceCapture()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--brd);cursor:pointer;font-size:15px;background:var(--surf);color:var(--txt2)" title="Add tasks by voice">🎙️</button>
+      <button onclick="openDailySummary()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--brd);cursor:pointer;font-size:15px;background:var(--surf);color:var(--txt2)" title="Copy today's task list">📋</button>
       <button class="btn-p" onclick="openAddTask()">+ Add Task</button>
     </div>
   </div>
@@ -2208,14 +2234,14 @@ function renderToday(){
               +'<div style="font-size:13px;color:var(--txt);font-weight:500;margin-bottom:3px">'+mt.title+(minis.length?' <span style="font-size:11px;color:var(--txt3)">'+(isExp?'▲':'▼')+'</span>':'')+'</div>'
               +'<div style="font-size:11px;color:var(--txt2);display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
                 +(cat?'<span style="color:'+cat.c+';font-weight:600">'+cat.name+'</span>':'')
-                +'<span style="color:'+WH_C[mt.wh||'Sunrise']+'">'+( mt.wh||'')+'</span>'
+                +'<span style="color:'+WH_C[mt.wh||'Sunrise']+'" title="'+(mt.wh||'')+'">'+( WH_ICON[mt.wh||'Sunrise']||mt.wh||'')+'</span>'
                 +(mt.oqSchedule?'<span>'+mt.oqSchedule.time+' · '+mt.dur+'</span>':'')
                 +(goal?'<span style="color:var(--txt3)">· '+goal.title.slice(0,25)+'</span>':'')
                 +miniSummary
               +'</div>'
             +'</div>'
             +'<div style="display:flex;gap:5px;align-items:center;flex-shrink:0" onclick="event.stopPropagation()">'
-              +'<button onclick="startTimer(\''+mt.id+'\',\'Focus\',\''+( mt.dur||'25 min')+'\')" style="background:var(--surf2);border:1px solid var(--brd);border-radius:6px;cursor:pointer;font-size:13px;padding:3px 7px;color:var(--txt2)" title="Start timer">⏱</button>'
+              +'<button onclick="startTimer(\''+mt.id+'\',\'Focus\',\''+( mt.dur||'25 min')+'\')" style="background:transparent;border:none;cursor:pointer;font-size:16px;padding:2px 4px;color:var(--txt3);line-height:1" title="Start timer">⏱</button>'
               +'<select onchange="updateTodayTaskStatus(\''+mt.id+'\',this.value)" style="font-size:11px;padding:3px 5px;border:1px solid var(--brd);border-radius:6px;background:var(--inp);color:var(--txt2);cursor:pointer">'+selOpts(STATUS,mt.status)+'</select>'
             +'</div>'
           +'</div>'
@@ -2232,7 +2258,7 @@ function renderToday(){
       if(!grouped[wh].length)return;
       html+=`<div style="margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div style="font-size:12px;font-weight:700;color:${WH_C[wh]};text-transform:uppercase;letter-spacing:.5px">${wh}</div>
+          <div style="font-size:12px;font-weight:700;color:${WH_C[wh]};text-transform:uppercase;letter-spacing:.5px">${WH_ICON[wh]} ${wh}</div>
           <div style="flex:1;height:1px;background:var(--brd)"></div>
           <div style="font-size:11px;color:var(--txt3)">${grouped[wh].length} task${grouped[wh].length!==1?'s':''}</div>
         </div>
@@ -2355,7 +2381,7 @@ function renderTomorrow(){
             +'<div style="font-size:13px;color:var(--txt)">'+t.title+'</div>'
             +'<div style="font-size:11px;color:var(--txt2);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap">'
               +(cat?'<span style="color:'+cat.c+';font-weight:600">'+cat.name+'</span>':'')
-              +'<span style="color:'+WH_C[t.wh||'Sunrise']+'">'+( t.wh||'Sunrise')+'</span>'
+              +'<span style="color:'+WH_C[t.wh||'Sunrise']+'" title="'+(t.wh||'Sunrise')+'">'+( WH_ICON[t.wh||'Sunrise']||t.wh||'Sunrise')+'</span>'
               +(t.taskTime?'<span style="color:var(--txt3)">'+t.taskTime+'</span>':'')
               +(g?'<span style="color:var(--txt3)">· '+g.title.slice(0,30)+'</span>':'')
             +'</div>'
@@ -2583,7 +2609,7 @@ function renderWeek(){
   // All tasks for any day this week (including recurring)
   const allWeekTasks=S.tasks.filter(t=>{
     if(t.isChildTask||t.removedFromToday||t.isLoop)return false;
-    if(t.status==='Completed')return false;
+    if(t.status==='Completed'||t.status==='Still Open')return false;
     const tdays=Array.isArray(t.days)?t.days:(t.day?[t.day]:[]);
     if(tdays.some(d=>DAYS.includes(d)))return true;
     // Recurring tasks that should appear this week
@@ -2774,26 +2800,21 @@ function renderWeek(){
   // ── By Category list ────────────────────────────────────────────────────────
   const catKanban=(()=>{
     const usedCats=[...new Set([...allMs.map(m=>m.cat),...allWeekTasks.map(t=>t.cat).filter(Boolean)])];
+    if(!S.weekCatOpen)S.weekCatOpen={};
     return usedCats.map(cid=>{
       const cat=gc(cid);
       const cMs=allMs.filter(m=>m.cat===cid);
       const cTasks=allWeekTasks.filter(t=>t.cat===cid&&!t.msid);
       if(!cMs.length&&!cTasks.length)return'';
-      return'<div style="margin-bottom:22px">'
-        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
-          +'<div style="width:10px;height:10px;border-radius:50%;background:'+(cat?.c||'#888')+';flex-shrink:0"></div>'
-          +'<div style="font-size:11px;font-weight:700;color:'+(cat?.c||'var(--txt2)')+';text-transform:uppercase;letter-spacing:.7px">'+(cat?.name||cid)+'</div>'
-          +'<div style="flex:1;height:1px;background:var(--brd)"></div>'
-          +'<span style="font-size:11px;color:var(--txt3)">'+(cMs.length+cTasks.length)+' items</span>'
-        +'</div>'
-        +cMs.map(m=>msCard(m,m.status==='Still Open')).join('')
-        +cTasks.map(taskCard).join('')
+      const isOpen=S.weekCatOpen[cid]!==false;
+      return'<div style="margin-bottom:14px">'        +'<button onclick="S.weekCatOpen=S.weekCatOpen||{};S.weekCatOpen[\''+cid+'\']=!'+isOpen+';render()" style="width:100%;display:flex;align-items:center;gap:8px;margin-bottom:'+(isOpen?'10':'0')+'px;background:none;border:none;cursor:pointer;text-align:left;padding:6px 0">'          +'<div style="width:10px;height:10px;border-radius:50%;background:'+(cat?.c||'#888')+';flex-shrink:0"></div>'          +'<div style="font-size:11px;font-weight:700;color:'+(cat?.c||'var(--txt2)')+';text-transform:uppercase;letter-spacing:.7px">'+(cat?.name||cid)+'</div>'          +'<div style="flex:1;height:1px;background:var(--brd)"></div>'          +'<span style="font-size:11px;color:var(--txt3)">'+(cMs.length+cTasks.length)+' items &nbsp;'+(isOpen?'▲':'▼')+'</span>'        +'</button>'        +(isOpen?(cMs.map(m=>msCard(m,m.status==='Still Open')).join('')+cTasks.map(taskCard).join('')):'')
       +'</div>';
     }).join('');
   })();
 
   // ── By Day list ──────────────────────────────────────────────────────────────
   const dayKanban=(()=>{
+    if(!S.weekDayOpen)S.weekDayOpen={};
     return DAYS.map(day=>{
       const dayTasks=allWeekTasks.filter(t=>{
         const tdays=Array.isArray(t.days)?t.days:(t.day?[t.day]:[]);
@@ -2805,14 +2826,9 @@ function renderWeek(){
       });
       if(!dayTasks.length&&!dayMs.length)return'';
       const isToday=day===TODAY_NAME;
-      return'<div style="margin-bottom:22px">'
-        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
-          +'<div style="font-size:12px;font-weight:700;color:'+(isToday?'#1d4ed8':'var(--txt2)')+'">'+day+'</div>'
-          +(isToday?'<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:1px 7px;border:1px solid #bfdbfe">Today</span>':'')
-          +'<div style="flex:1;height:1px;background:'+(isToday?'#bfdbfe':'var(--brd)')+'"></div>'
-        +'</div>'
-        +dayMs.map(m=>msCard(m,m.status==='Still Open')).join('')
-        +dayTasks.map(taskCard).join('')
+      const isOpen=S.weekDayOpen[day]!==false;
+      const taskCardNoDay=t=>taskCard(t,true);
+      return'<div style="margin-bottom:14px">'        +'<button onclick="S.weekDayOpen=S.weekDayOpen||{};S.weekDayOpen[\''+day+'\']=!'+isOpen+';render()" style="width:100%;display:flex;align-items:center;gap:8px;margin-bottom:'+(isOpen?'10':'0')+'px;background:none;border:none;cursor:pointer;text-align:left;padding:6px 0">'          +'<div style="font-size:12px;font-weight:700;color:'+(isToday?'#1d4ed8':'var(--txt2)')+'">'+day+'</div>'          +(isToday?'<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:1px 7px;border:1px solid #bfdbfe">Today</span>':'')          +'<div style="flex:1;height:1px;background:'+(isToday?'#bfdbfe':'var(--brd)')+'"></div>'          +'<span style="font-size:11px;color:var(--txt3)">'+(dayMs.length+dayTasks.length)+' items &nbsp;'+(isOpen?'▲':'▼')+'</span>'        +'</button>'        +(isOpen?(dayMs.map(m=>msCard(m,m.status==='Still Open')).join('')+dayTasks.map(taskCardNoDay).join('')):'')
       +'</div>';
     }).filter(Boolean).join('');
   })();
@@ -5069,6 +5085,78 @@ checkDayRollover();
 setTimeout(requestNotificationPermission,3000);
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));
+}
+
+function openDailySummary(){
+  const allTodayTasks=S.tasks.filter(function(t){
+    if(t.isChildTask||t.removedFromToday||t.isLoop)return false;
+    if(t.status==='Completed'||t.status==='Still Open')return false;
+    const tdays=Array.isArray(t.days)?t.days:(t.day?[t.day]:[]);
+    return tdays.includes(TODAY_NAME);
+  });
+  if(!allTodayTasks.length){
+    openModal('<div class="modal-hdr"><strong>📋 Today\'s Task List</strong><button class="x-btn" onclick="closeModal()">×</button></div><div style="text-align:center;padding:24px;color:var(--txt3)">No tasks scheduled for today yet.</div>');
+    return;
+  }
+  const grouped={Sunrise:[],Midday:[],Sunset:[]};
+  allTodayTasks.forEach(function(t){
+    const wh=t.wh||'Sunrise';
+    (grouped[wh]=grouped[wh]||[]).push(t);
+  });
+  // Plain-text version stored on window for copy
+  const textLines=["TODAY'S TASKS — "+TODAY_DATE,""];
+  ['Sunrise','Midday','Sunset'].forEach(function(wh){
+    if(!grouped[wh]||!grouped[wh].length)return;
+    textLines.push("*"+wh.toUpperCase()+"*");
+    grouped[wh].forEach(function(t){
+      var line="- "+t.title;
+      var meta=[];
+      if(t.taskTime)meta.push(t.taskTime);
+      if(t.dur)meta.push(t.dur);
+      if(meta.length)line+=" ("+meta.join(" | ")+")";
+      if(t.priority==='urgent')line+=" 🚩";
+      textLines.push(line);
+    });
+    textLines.push("");
+  });
+  window._atlasSummaryText=textLines.join("\n").trim();
+  // HTML preview
+  var html='';
+  ['Sunrise','Midday','Sunset'].forEach(function(wh){
+    if(!grouped[wh]||!grouped[wh].length)return;
+    html+='<div style="margin-bottom:12px">';
+    html+='<div style="font-size:11px;font-weight:700;color:'+WH_C[wh]+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+WH_ICON[wh]+' '+wh+'</div>';
+    grouped[wh].forEach(function(t){
+      var line=t.title;
+      var meta=[];
+      if(t.taskTime)meta.push(t.taskTime);
+      if(t.dur)meta.push(t.dur);
+      html+='<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--surf2)">';
+      html+='<span style="font-size:13px;color:var(--txt);flex:1">'+line+(t.priority==='urgent'?' 🚩':'')+'</span>';
+      if(meta.length)html+='<span style="font-size:11px;color:var(--txt3);flex-shrink:0">'+meta.join(' · ')+'</span>';
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  openModal(
+    '<div class="modal-hdr"><strong>📋 Today\'s Task List</strong><button class="x-btn" onclick="closeModal()">×</button></div>'
+    +'<div style="font-size:12px;color:var(--txt3);margin-bottom:10px">'+TODAY_DATE+'</div>'
+    +'<div style="background:var(--surf2);border-radius:10px;padding:14px 16px;margin-bottom:14px;max-height:60vh;overflow-y:auto">'+html+'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+      +'<button class="btn-g" onclick="closeModal()">Close</button>'
+      +'<button id="copy-summary-btn" onclick="copyAtlasSummary()" style="padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:var(--txt);color:var(--surf)">📋 Copy to Clipboard</button>'
+    +'</div>'
+  );
+}
+function copyAtlasSummary(){
+  var txt=window._atlasSummaryText||'';
+  var btn=document.getElementById('copy-summary-btn');
+  navigator.clipboard.writeText(txt).then(function(){
+    if(btn){btn.textContent='✓ Copied!';btn.style.background='#22c55e';}
+    setTimeout(function(){if(btn){btn.textContent='📋 Copy to Clipboard';btn.style.background='';}},2000);
+  }).catch(function(){
+    prompt('Copy this:',txt);
+  });
 }
 
 render();
